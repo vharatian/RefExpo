@@ -1,18 +1,10 @@
-<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.vharatian.refexpo</id>
     <name>RefExpo Template</name>
     <vendor>vharatian</vendor>
-
-    <depends>com.intellij.modules.platform</depends>
-
-    <resource-bundle>messages.MyBundle</resource-bundle>
-
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.vharatian.refexpo.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
+        <toolWindow id="RefExpoWindow" anchor="right" factoryClass="RefExpoToolWindowFactory"/>
     </extensions>
-
-    <applicationListeners>
-        <listener class="com.github.vharatian.refexpo.listeners.MyApplicationActivationListener" topic="com.intellij.openapi.application.ApplicationActivationListener"/>
-    </applicationListeners>
+    <!-- Additional configurations as needed -->
 </idea-plugin>
+
