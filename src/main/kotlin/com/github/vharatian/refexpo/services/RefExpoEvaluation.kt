@@ -1,25 +1,41 @@
 package com.github.vharatian.refexpo.services
 
 import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
-import com.intellij.openapi.components.Service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.vcs.ProjectLevelVcsManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.*
 import java.io.BufferedWriter
 import java.io.File
+import com.github.vharatian.refexpo.utils.isNullOrFalse
 
-@Service(Service.Level.PROJECT)
-class RefExpoService(val project: Project) {
+
+class RefExpoEvaluation(private val project: Project, private val config: RefExpoExecutionConfig) {
 
     private val psiManager = PsiManager.getInstance(project)
     private val fileIndex = ProjectFileIndex.getInstance(project)
     private val vcsManager = ProjectLevelVcsManager.getInstance(project)
 
+    private val ignoredFilesRegex = config.ignoringFilesRegex.createRegex()
+    private val ignoredClassesRegex = config.ignoringClassesRegex.createRegex()
+    private val ignoredMethodsRegex = config.ignoringMethodsRegex.createRegex()
 
-    fun runInspections(config: RefExpoExecutionConfig, progressIndicator: ProgressIndicator) {
+    private fun String.createRegex() = if (isNotEmpty())
+    {
+//            var regex = this
+//
+//            if (!regex.startsWith(".")) regex = ".$regex"
+//            if (!regex.endsWith("$")) regex = "$regex$"
+
+            Regex(this)
+        } else null
+
+
+
+    fun runInspections(progressIndicator: ProgressIndicator) {
         progressIndicator.text = "Finding project files"
         val projectFiles = getAllFiles(progressIndicator)
 
@@ -27,7 +43,7 @@ class RefExpoService(val project: Project) {
         loadProjectFiles(projectFiles, progressIndicator)
 
         progressIndicator.text = "Exporting dependencies"
-        exportDependencies(projectFiles, progressIndicator, config)
+        exportDependencies(projectFiles, progressIndicator)
     }
 
     fun getAllFiles(progressIndicator: ProgressIndicator): List<PsiFile> {
@@ -38,8 +54,12 @@ class RefExpoService(val project: Project) {
                 val file = psiManager.findFile(it)
 
                 file?.let {
-                    files.add(file)
-                    progressIndicator.text2 = "${files.size} -> ${file.name}"
+                    val filepath = file.virtualFile.getRelativePath()
+                    progressIndicator.text2 = "${files.size} -> $filepath"
+
+                    if (ignoredFilesRegex?.matches(filepath).isNullOrFalse()) {
+                        files.add(file)
+                    }
                 }
             }
             true
@@ -59,7 +79,7 @@ class RefExpoService(val project: Project) {
 
 
     fun exportDependencies(
-        projectFiles: List<PsiFile>, progressIndicator: ProgressIndicator, config: RefExpoExecutionConfig
+        projectFiles: List<PsiFile>, progressIndicator: ProgressIndicator
     ) {
         val csvFile = createOutputFile(config.filePath)
 
@@ -67,7 +87,7 @@ class RefExpoService(val project: Project) {
             writer.write("SourceFile,SourceClass,SourceMethod,DestinationFile,DestinationClass,DestinationMethod\n")
 
             val visitor = ErrorResilientVisitor { element ->
-                processElement(element, writer, config)
+                processElement(element, writer)
             }
 
             runOverAllFiles(projectFiles, visitor, progressIndicator)
@@ -78,7 +98,7 @@ class RefExpoService(val project: Project) {
     }
 
     private fun runOverAllFiles(
-        projectFiles: List<PsiFile>, visitor: ErrorResilientVisitor, progressIndicator: ProgressIndicator
+        projectFiles: List<PsiFile>, visitor: PsiRecursiveElementVisitor, progressIndicator: ProgressIndicator
     ) {
 
         projectFiles.forEachIndexed { index, psiFile ->
@@ -107,7 +127,7 @@ class RefExpoService(val project: Project) {
         return csvFile
     }
 
-    private fun processElement(psiElement: PsiElement, writer: BufferedWriter, config: RefExpoExecutionConfig) {
+    private fun processElement(psiElement: PsiElement, writer: BufferedWriter) {
         // Check all references of the psiElement
         val references = psiElement.references
         for (ref in references) {
@@ -128,9 +148,9 @@ class RefExpoService(val project: Project) {
             val destinationMethod = findEnclosingElement<PsiMethod>(destination)?.name ?: ""
 
             // Ignore if the source and destination are the same
-            if (config.ignoreInterFile && sourceFile == destinationFile) continue
-            if (config.ignoreInterClass && sourceFile == destinationFile && sourceClass == destinationClass) continue
-            if (config.ignoreInterMethod && sourceFile == destinationFile && sourceClass == destinationClass && sourceMethod == destinationMethod) continue
+            if (ignored(sourceFile, destinationFile, sourceClass, destinationClass, sourceMethod, destinationMethod)) {
+                continue
+            }
 
             val csvLine =
                 "$sourceFile,$sourceClass,$sourceMethod,$destinationFile,$destinationClass,$destinationMethod\n"
@@ -139,8 +159,30 @@ class RefExpoService(val project: Project) {
         }
     }
 
+    private fun ignored(
+        sourceFile: String,
+        destinationFile: String,
+        sourceClass: String,
+        destinationClass: String,
+        sourceMethod: String,
+        destinationMethod: String
+    ): Boolean {
+        if (config.ignoreInterFile && sourceFile == destinationFile) return true
+        if (config.ignoreInterClass && sourceFile == destinationFile && sourceClass == destinationClass) return true
+        if (config.ignoreInterMethod && sourceFile == destinationFile && sourceClass == destinationClass && sourceMethod == destinationMethod) return true
+
+        if (ignoredFilesRegex?.matches(sourceFile) == true) return true
+        if (ignoredFilesRegex?.matches(destinationFile) == true) return true
+        if (ignoredClassesRegex?.matches(sourceClass) == true) return true
+        if (ignoredClassesRegex?.matches(destinationClass) == true) return true
+        if (ignoredMethodsRegex?.matches(sourceMethod) == true) return true
+        if (ignoredMethodsRegex?.matches(destinationMethod) == true) return true
+        return false
+    }
+
     private fun VirtualFile.isValidForInspection() =
         !isDirectory && !fileIndex.isInLibrary(this) && vcsManager.isFileInContent(this) && !name.contains(".gradle.kts")
+
     private fun VirtualFile.getRelativePath() = path.replace("${project.basePath}/", "")
 
     private inline fun <reified T : PsiElement> findEnclosingElement(element: PsiElement?): T? {

@@ -12,9 +12,12 @@ class RefExpoToolWindow(private val project: Project) {
     private val statusLabel = JLabel()
     private val mainPanel = JPanel()
     private val filePathField = JTextField("references.csv")
-    private val ignoreInterFile = JCheckBox("Ignore inter file referencing")
-    private val ignoreInterClass = JCheckBox("Ignore inter class referencing")
-    private val ignoreInterMethod = JCheckBox("Ignore inter method referencing")
+    private val ignoreInterFile = JCheckBox("Ignore intra file referencing")
+    private val ignoreInterClass = JCheckBox("Ignore intra class referencing")
+    private val ignoreInterMethod = JCheckBox("Ignore intra method referencing")
+    private val ignoringFilesRegex = JTextField("")
+    private val ignoringClassesRegex = JTextField("")
+    private val ignoringMethodsRegex = JTextField("")
     private val runInspectionAction = InspectionRunner(project)
     private val verticalPadding = 20
 
@@ -29,10 +32,12 @@ class RefExpoToolWindow(private val project: Project) {
         addComponent(statusLabel)
 
         //Configure and add file path field
-        addComponent(prepareLefAlignedComponent(JLabel("Export File Path:")))
-        filePathField.alignmentX = JPanel.CENTER_ALIGNMENT
-        filePathField.maximumSize = Dimension(Integer.MAX_VALUE - 10, filePathField.preferredSize.height)
-        addComponent(filePathField, false)
+        addTextField("Output file path:", filePathField)
+
+        // Configure and add file path field
+        addTextField("Ignoring files regex:", ignoringFilesRegex)
+        addTextField("Ignoring classes regex:", ignoringClassesRegex)
+        addTextField("Ignoring methods regex:", ignoringMethodsRegex)
 
         // Configure and add the checkbox
         addComponent(prepareLefAlignedComponent(ignoreInterFile))
@@ -45,6 +50,13 @@ class RefExpoToolWindow(private val project: Project) {
         addComponent(runButton)
 
         setStatusMessage("Ready")
+    }
+
+    private fun addTextField(message: String, textField: JTextField) {
+        addComponent(prepareLefAlignedComponent(JLabel(message)))
+        textField.alignmentX = JPanel.CENTER_ALIGNMENT
+        textField.maximumSize = Dimension(Integer.MAX_VALUE - 100, filePathField.preferredSize.height)
+        addComponent(textField, false)
     }
 
     private fun prepareLefAlignedComponent(component: JComponent): JPanel {
@@ -84,6 +96,9 @@ class RefExpoToolWindow(private val project: Project) {
 
         val config = RefExpoExecutionConfig(
             filePath,
+            ignoringFilesRegex.text,
+            ignoringClassesRegex.text,
+            ignoringMethodsRegex.text,
             ignoreInterFile.isSelected,
             ignoreInterClass.isSelected,
             ignoreInterMethod.isSelected

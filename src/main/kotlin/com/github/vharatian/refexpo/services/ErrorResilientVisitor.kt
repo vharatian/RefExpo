@@ -1,9 +1,9 @@
 package com.github.vharatian.refexpo.services
 
-import com.intellij.psi.JavaRecursiveElementVisitor
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiRecursiveElementVisitor
 
-class ErrorResilientVisitor(val processElement: (PsiElement) -> Unit) : JavaRecursiveElementVisitor() {
+class ErrorResilientVisitor(val processElement: (PsiElement) -> Unit) : PsiRecursiveElementVisitor() {
 
     override fun visitElement(element: PsiElement) {
         try {
