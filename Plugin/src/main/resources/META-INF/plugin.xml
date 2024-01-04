@@ -1,0 +1,10 @@
+<idea-plugin>
+    <id>com.github.vharatian.refexpo</id>
+    <name>RefExpo Template</name>
+    <vendor>vharatian</vendor>
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="RefExpoWindow" anchor="right" factoryClass="RefExpoToolWindowFactory"/>
+    </extensions>
+    <!-- Additional configurations as needed -->
+</idea-plugin>
+
