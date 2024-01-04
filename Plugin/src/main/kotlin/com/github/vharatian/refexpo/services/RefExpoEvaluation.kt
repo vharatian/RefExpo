@@ -4,7 +4,6 @@ import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
-import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.vcs.ProjectLevelVcsManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.*
@@ -84,7 +83,7 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
         val csvFile = createOutputFile(config.filePath)
 
         csvFile.bufferedWriter().use { writer ->
-            writer.write("SourceFile,SourceClass,SourceMethod,DestinationFile,DestinationClass,DestinationMethod\n")
+            writer.write("SourceFile,SourceClass,SourceMethod,TargetFile,TargetClass,TargetMethod\n")
 
             val visitor = ErrorResilientVisitor { element ->
                 processElement(element, writer)
@@ -133,19 +132,19 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
         for (ref in references) {
 
             //Check if the destination of the reference is valid
-            val destination = ref.resolve()
-            if (destination == null || destination.containingFile == null || !destination.containingFile.virtualFile.isValidForInspection()) {
+            val target = ref.resolve()
+            if (target == null || target.containingFile == null || !target.containingFile.virtualFile.isValidForInspection()) {
                 continue
             }
 
             // Extract information from each reference
             val sourceFile = psiElement.containingFile?.virtualFile?.getRelativePath() ?: ""
-            val sourceClass = findEnclosingElement<PsiClass>(psiElement)?.name ?: ""
+            val sourceClass = getClassName(psiElement)
             val sourceMethod = findEnclosingElement<PsiMethod>(psiElement)?.name ?: ""
 
-            val destinationFile = destination.containingFile.virtualFile.getRelativePath()
-            val destinationClass = findEnclosingElement<PsiClass>(destination)?.name ?: ""
-            val destinationMethod = findEnclosingElement<PsiMethod>(destination)?.name ?: ""
+            val destinationFile = target.containingFile.virtualFile.getRelativePath()
+            val destinationClass = getClassName(target)
+            val destinationMethod = findEnclosingElement<PsiMethod>(target)?.name ?: ""
 
             // Ignore if the source and destination are the same
             if (ignored(sourceFile, destinationFile, sourceClass, destinationClass, sourceMethod, destinationMethod)) {
@@ -156,6 +155,15 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
                 "$sourceFile,$sourceClass,$sourceMethod,$destinationFile,$destinationClass,$destinationMethod\n"
 
             writer.append(csvLine)
+        }
+    }
+
+    private fun getClassName(element: PsiElement): String {
+        val psiClass = findEnclosingElement<PsiClass>(element)
+        return if (config.addPackageName) {
+            psiClass?.qualifiedName ?: ""
+        } else {
+            psiClass?.name ?: ""
         }
     }
 

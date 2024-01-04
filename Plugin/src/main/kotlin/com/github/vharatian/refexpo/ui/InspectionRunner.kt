@@ -1,4 +1,4 @@
-package com.github.vharatian.refexpo.toolWindow
+package com.github.vharatian.refexpo.ui
 
 import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
 import com.github.vharatian.refexpo.services.RefExpoEvaluation
