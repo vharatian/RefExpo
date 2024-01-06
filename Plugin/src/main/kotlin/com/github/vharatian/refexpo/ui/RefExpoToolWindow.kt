@@ -28,8 +28,8 @@ class RefExpoToolWindow(private val project: Project) {
         // Configure components and add them to the main panel with padding
         statusLabel.alignmentX = JPanel.CENTER_ALIGNMENT
         val currentFontSize = statusLabel.font.size
-        statusLabel.font = statusLabel.font.deriveFont(Font.BOLD, currentFontSize * 1.3f) // Set font to bold
-        statusLabel.foreground = JBColor.WHITE // Set a distinct color
+        statusLabel.font = statusLabel.font.deriveFont(Font.BOLD, currentFontSize * 1.3f)
+        statusLabel.foreground = Color.WHITE
         addComponent(statusLabel)
 
         //Configure and add file path field
