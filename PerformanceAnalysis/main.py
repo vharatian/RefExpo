@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import json
 import os
 import pandas as pd
@@ -74,11 +75,14 @@ def load_jarviz(project):
         sourceClass, sourceMethod, targetClass, targetMethod = extract_jarviz_parameters(json_object)
 
         # Generate the formatted strings and add them to the lists
-        class_relations.append(f"{sourceClass}->{targetClass}")
-        method_relations.append(f"{sourceClass}:{sourceMethod}->{targetClass}:{targetMethod}")
+        if sourceClass != targetClass:
+            class_relations.append(f"{sourceClass}->{targetClass}")
 
-    class_relations = count_occurrences(class_relations)
-    method_relations = count_occurrences(method_relations)
+        if sourceMethod != targetMethod:
+            method_relations.append(f"{sourceClass}:{sourceMethod}->{targetClass}:{targetMethod}")
+
+    # class_relations = count_occurrences(class_relations)
+    # method_relations = count_occurrences(method_relations)
 
     return class_relations, method_relations
 
@@ -97,11 +101,10 @@ def load_refexpo_data(project):
         f"{row['SourceClass']}:{row['SourceMethod']}->{row['TargetClass']}:{row['TargetMethod']}" for _, row in
         refexpo_df.iterrows()]
 
-    class_relations = count_occurrences(class_relations)
-    method_relations = count_occurrences(method_relations)
+    class_relations = filter_nans(class_relations)
+    method_relations = filter_nans(method_relations)
 
     return class_relations, method_relations
-
 
 def extract_class_name_from_feature(feature_reference, feature=True):
     # Find the position of the opening parenthesis
@@ -155,37 +158,47 @@ def load_dependencyfinder_data(project):
                 relation_str = f"{inbound_reference}->{class_name}"
                 class_inbound_relations.append(relation_str)
 
-    return count_occurrences(class_inbound_relations)
+    return class_inbound_relations
 
 
 def filter_nans(relations):
     return [relation for relation in relations if 'nan' not in relation]
 
 
-def compare_relations(refexpo_relations, jarviz_relations):
-    # Convert Counter objects to sets for easy comparison
-    refexpo_set = set(filter_nans(refexpo_relations.keys()))
-    jarviz_set = set(filter_nans(jarviz_relations.keys()))
+def compare_relations(*lists):
+    unique_sets = [set(lst) for lst in lists]
+    num_lists = len(unique_sets)
 
-    # Common elements
-    common = refexpo_set & jarviz_set
+    # Check if the number of all elements is equal to sum of results
+    # print(len(set(itertools.chain.from_iterable(lists))))
 
-    # Unique to RefExpo
-    unique_refexpo = refexpo_set - jarviz_set
+    # Count appearances across lists
+    appearances = Counter(string for lst in unique_sets for string in lst)
 
-    # Unique to Jarviz
-    unique_jarviz = jarviz_set - refexpo_set
+    # Elements that appear in all lists
+    shared_elements = set.intersection(*unique_sets)
+    shared_count = len(shared_elements)
 
-    # Comparing counts
-    count_differences = {}
-    for relation in common:
-        count_differences[relation] = {
-            'refexpo': refexpo_relations[relation],
-            'jarviz': jarviz_relations[relation]
-        }
+    # Remove elements that appear in all lists
+    for element in shared_elements:
+        del appearances[element]
 
-    return common, unique_refexpo, unique_jarviz, count_differences
+    # Count of elements grouped by the number of lists they appear in
+    grouped_appearances_count = Counter(appearances.values())
 
+    # Remove count of elements that appear in only one list
+    if 1 in grouped_appearances_count:
+        del grouped_appearances_count[1]
+
+    # Collect unique elements (not in other lists) for each list
+    unique_elements_lists = []
+    for current_set in unique_sets:
+        other_sets = unique_sets.copy()
+        other_sets.remove(current_set)
+        unique_elements = current_set - set().union(*other_sets)
+        unique_elements_lists.append(unique_elements)
+
+    return unique_elements_lists, shared_count, grouped_appearances_count
 
 # Function to extract the base path and file extension
 def extract_base_path_and_extension(file_column):
@@ -225,7 +238,7 @@ def load_sonargraph_data(project):
     file_path = os.path.join('data', project, 'sonargraph.csv')
 
     df = load_csv_file(file_path)
-    return count_occurrences(df.apply(process_row, axis=1).dropna())
+    return df.apply(process_row, axis=1).dropna()
 
 
 def main():
@@ -242,23 +255,22 @@ def main():
     sonargraph_class_relations = load_sonargraph_data(project)
     # print(sonargraph_class_relations)
 
-    # dependencyfinder_class_relations = load_dependencyfinder_data(project)
-    # jarviz_class_relations, jarviz_method_relations = load_jarviz(project)
+    dependencyfinder_class_relations = load_dependencyfinder_data(project)
+    jarviz_class_relations, jarviz_method_relations = load_jarviz(project)
     refexpo_class_relations, refexpo_method_relations = load_refexpo_data(project)
 
     # Example usage in your main function
-    common_relations, unique_refexpo, unique_jarviz, count_diff = compare_relations(refexpo_class_relations,
-                                                                                    sonargraph_class_relations)
-    #
-    # # print("Common Relations:")
-    # # print(common_relations)
-    #
-    # print("\nUnique to RefExpo:")
-    print(len(unique_refexpo))
-    #
-    # print("\nUnique to Jarviz:")
-    print(len(unique_jarviz))
-    print(unique_jarviz)
+    unique_elements_lists, shared_count, grouped_appearances_count = compare_relations(refexpo_class_relations,
+                                                                               sonargraph_class_relations,
+                                                                               jarviz_class_relations,
+                                                                               dependencyfinder_class_relations)
+
+    for i, unique_elements in enumerate(unique_elements_lists, start=1):
+        print(f"Unique elements in list {i} -> {len(unique_elements)}")
+
+    print(f"Number of shared elements: {shared_count}")
+    print(
+        f"Count of elements by number of lists they appear in (excluding those in all lists and unique ones): {grouped_appearances_count}")
 
     # print("\nCount Differences in Common Relations:")
     # for relation, counts in count_diff.items():
