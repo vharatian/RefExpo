@@ -4,6 +4,7 @@ import os
 import pandas as pd
 from collections import Counter
 import xml.etree.ElementTree as ET
+import re
 
 
 def count_occurrences(refexpo_class_relations):
@@ -101,6 +102,7 @@ def load_refexpo_data(project):
 
     return class_relations, method_relations
 
+
 def extract_class_name_from_feature(feature_reference, feature=True):
     # Find the position of the opening parenthesis
     paren_index = feature_reference.find('(')
@@ -120,7 +122,8 @@ def extract_class_name_from_feature(feature_reference, feature=True):
 
     return feature_reference
 
-def load_dependency_finder_data(project):
+
+def load_dependencyfinder_data(project):
     # Construct the full file path
     file_path = os.path.join('data', project, 'dependencyFinder.xml')
 
@@ -184,6 +187,47 @@ def compare_relations(refexpo_relations, jarviz_relations):
     return common, unique_refexpo, unique_jarviz, count_differences
 
 
+# Function to extract the base path and file extension
+def extract_base_path_and_extension(file_column):
+    match = re.search(r':\./([^:]+):', file_column)
+    base_path = match.group(1) if match else ''
+    extension = re.search(r'\.([^.]+)$', file_column)
+    extension = extension.group(1) if extension else ''
+    return base_path, extension
+
+
+# Function to extract package and class name
+def extract_package_and_class(column, base_path, extension):
+    if base_path and extension:
+        regex_pattern = rf':\./{base_path}:((?:[^:]+:)*)([^:]+)\.{extension}'
+        match = re.search(regex_pattern, column)
+        if match:
+            package_name = match.group(1).rstrip(':').replace(':', '.')
+            class_name = match.group(2)
+            return f"{package_name}.{class_name}" if package_name and class_name else None
+    return None
+
+
+def process_row(row):
+    from_base_path, from_extension = extract_base_path_and_extension(row['From File'])
+    to_base_path, to_extension = extract_base_path_and_extension(row['To File'])
+    from_full_name = extract_package_and_class(row['From'], from_base_path, from_extension)
+    to_full_name = extract_package_and_class(row['To'], to_base_path, to_extension)
+
+    return f"{from_full_name}->{to_full_name}" \
+        if from_full_name and to_full_name and from_full_name != to_full_name \
+        else None
+
+
+# Apply the processing to each row
+
+def load_sonargraph_data(project):
+    file_path = os.path.join('data', project, 'sonargraph.csv')
+
+    df = load_csv_file(file_path)
+    return count_occurrences(df.apply(process_row, axis=1).dropna())
+
+
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Load a JSONL file from a specified project folder.')
@@ -194,13 +238,17 @@ def main():
     args = parser.parse_args()
     project = args.project
 
-    df_class_relations = load_dependency_finder_data(project)
+    # Load the data
+    sonargraph_class_relations = load_sonargraph_data(project)
+    # print(sonargraph_class_relations)
+
+    # dependencyfinder_class_relations = load_dependencyfinder_data(project)
     # jarviz_class_relations, jarviz_method_relations = load_jarviz(project)
     refexpo_class_relations, refexpo_method_relations = load_refexpo_data(project)
 
     # Example usage in your main function
     common_relations, unique_refexpo, unique_jarviz, count_diff = compare_relations(refexpo_class_relations,
-                                                                                    df_class_relations)
+                                                                                    sonargraph_class_relations)
     #
     # # print("Common Relations:")
     # # print(common_relations)
