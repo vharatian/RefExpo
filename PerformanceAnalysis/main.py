@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 from collections import Counter
+import xml.etree.ElementTree as ET
 
 
 def count_occurrences(refexpo_class_relations):
@@ -34,7 +35,22 @@ def load_csv_file(file_path):
     return df
 
 
-def extract_parameters(json_object):
+# load xml file
+def load_xml_file(file_path):
+    # Check if the file exists
+    if not os.path.isfile(file_path):
+        print(f"File not found: {file_path}")
+        return None
+
+    # Load the XML file using Pandas
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+
+    # Return the DataFrame
+    return root
+
+
+def extract_jarviz_parameters(json_object):
     # Extract the required parameters
     sourceClass = json_object.get('sourceClass', 'N/A')
     sourceMethod = json_object.get('sourceMethod', 'N/A')
@@ -54,7 +70,7 @@ def load_jarviz(project):
     method_relations = []
     # Load and process the file
     for json_object in load_jsonl_file(file_path):
-        sourceClass, sourceMethod, targetClass, targetMethod = extract_parameters(json_object)
+        sourceClass, sourceMethod, targetClass, targetMethod = extract_jarviz_parameters(json_object)
 
         # Generate the formatted strings and add them to the lists
         class_relations.append(f"{sourceClass}->{targetClass}")
@@ -66,11 +82,13 @@ def load_jarviz(project):
     return class_relations, method_relations
 
 
-def load_refexpo(project):
+def load_refexpo_data(project):
     # Construct the full file path
     file_path = os.path.join('data', project, 'refExpo.csv')
 
     refexpo_df = load_csv_file(file_path)
+    if refexpo_df is None:
+        return [], []
 
     # Process RefExpo data
     class_relations = [f"{row['SourceClass']}->{row['TargetClass']}" for _, row in refexpo_df.iterrows()]
@@ -83,9 +101,63 @@ def load_refexpo(project):
 
     return class_relations, method_relations
 
+def extract_class_name_from_feature(feature_reference, feature=True):
+    # Find the position of the opening parenthesis
+    paren_index = feature_reference.find('(')
+    if paren_index != -1:
+        feature_reference = feature_reference[:paren_index]  # Truncate at the first parenthesis
+
+    # Split the string by '.' and remove the method or property part
+    if feature:
+        parts = feature_reference.rsplit('.', 1)
+        if len(parts) > 1:
+            feature_reference = parts[0]
+
+    # Split the string by '$' and remove feature part
+    parts = feature_reference.split('$', 1)
+    if len(parts) > 1:
+        feature_reference = parts[0]
+
+    return feature_reference
+
+def load_dependency_finder_data(project):
+    # Construct the full file path
+    file_path = os.path.join('data', project, 'dependencyFinder.xml')
+
+    root = load_xml_file(file_path)
+
+    class_inbound_relations = []
+
+    for package in root.findall('.//package'):
+        # Check if the package is confirmed
+        if package.attrib.get('confirmed') != 'yes':
+            continue  # Skip unconfirmed packages
+
+        for class_element in package.findall('.//class'):
+            # Check if the class is confirmed
+            if class_element.attrib.get('confirmed') != 'yes':
+                continue  # Skip unconfirmed classes
+
+            class_name = class_element.find('name').text if class_element.find('name') is not None else 'Unnamed Class'
+            class_name = extract_class_name_from_feature(class_name, False)
+            inbound_elements = class_element.findall('inbound')
+            for inbound in inbound_elements:
+                # Check if the inbound reference is confirmed
+                if inbound.attrib.get('confirmed') != 'yes':
+                    continue  # Skip unconfirmed inbound references
+
+                inbound_reference = inbound.text if inbound.text is not None else 'Unknown Reference'
+                if inbound.attrib.get('type') == 'feature':  # Check if it's a feature
+                    inbound_reference = extract_class_name_from_feature(inbound_reference)
+                relation_str = f"{inbound_reference}->{class_name}"
+                class_inbound_relations.append(relation_str)
+
+    return count_occurrences(class_inbound_relations)
+
 
 def filter_nans(relations):
     return [relation for relation in relations if 'nan' not in relation]
+
 
 def compare_relations(refexpo_relations, jarviz_relations):
     # Convert Counter objects to sets for easy comparison
@@ -111,6 +183,7 @@ def compare_relations(refexpo_relations, jarviz_relations):
 
     return common, unique_refexpo, unique_jarviz, count_differences
 
+
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Load a JSONL file from a specified project folder.')
@@ -121,27 +194,23 @@ def main():
     args = parser.parse_args()
     project = args.project
 
-    jarviz_class_relations, jarviz_method_relations = load_jarviz(project)
-    refexpo_class_relations, refexpo_method_relations = load_refexpo(project)
-
-    # Print the collected relations
-    # print("Class Relations:")
-    # print(refexpo_class_relations)
-    # print("\nMethod Relations:")
-    # print(refexpo_method_relations)
+    df_class_relations = load_dependency_finder_data(project)
+    # jarviz_class_relations, jarviz_method_relations = load_jarviz(project)
+    refexpo_class_relations, refexpo_method_relations = load_refexpo_data(project)
 
     # Example usage in your main function
     common_relations, unique_refexpo, unique_jarviz, count_diff = compare_relations(refexpo_class_relations,
-                                                                                    jarviz_class_relations)
-
-    # print("Common Relations:")
-    # print(common_relations)
-
-    print("\nUnique to RefExpo:")
+                                                                                    df_class_relations)
+    #
+    # # print("Common Relations:")
+    # # print(common_relations)
+    #
+    # print("\nUnique to RefExpo:")
     print(len(unique_refexpo))
-
-    print("\nUnique to Jarviz:")
+    #
+    # print("\nUnique to Jarviz:")
     print(len(unique_jarviz))
+    print(unique_jarviz)
 
     # print("\nCount Differences in Common Relations:")
     # for relation, counts in count_diff.items():
