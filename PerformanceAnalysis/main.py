@@ -73,8 +73,9 @@ def main():
         print(f"Unique elements in list {i} -> {len(unique_elements)}")
 
     print(f"Number of shared elements: {shared_count}")
-    print(
-        f"Count of elements by number of lists they appear in (excluding those in all lists and unique ones): {grouped_appearances_count}")
+    print(f"Count of elements by number of lists they appear in")
+    for key, value in grouped_appearances_count.items():
+        print(f"\t{key} -> {value}")
 
 
 if __name__ == "__main__":
