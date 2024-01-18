@@ -8,7 +8,7 @@ def load_query(filename):
         return file.read()
 
 
-def get_repositories(token, languages, threshold, max_repos, query_file="query.graphql"):
+def get_repositories(token, languages, threshold, max_repos, query_file="repositories_query.graphql"):
     repositories = []
     end_cursor = None  # Start with no cursor
     headers = {"Authorization": f"Bearer {token}"}
