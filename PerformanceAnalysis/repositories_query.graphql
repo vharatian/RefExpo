@@ -1,13 +1,11 @@
 {
-  search(query: "stars:>100", type: REPOSITORY, first: 100, after: AFTER_CURSOR) {
+  search(query: "stars:>100 sort:stars-desc", type: REPOSITORY, first: 100, after: AFTER_CURSOR) {
     edges {
       cursor
       node {
         ... on Repository {
           name
-          stargazers {
-            totalCount
-          }
+          stargazerCount
           url
           languages(first: 100) {
             totalSize

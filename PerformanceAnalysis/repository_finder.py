@@ -1,6 +1,6 @@
-import requests
-import json
 import argparse
+import requests
+from tqdm import tqdm
 
 
 def load_query(filename):
@@ -13,6 +13,8 @@ def get_repositories(token, languages, threshold, max_repos, query_file="reposit
     end_cursor = None  # Start with no cursor
     headers = {"Authorization": f"Bearer {token}"}
     query_template = load_query(query_file)
+
+    pbar = tqdm(total=max_repos)
 
     while len(repositories) < max_repos:
         query = query_template.replace("AFTER_CURSOR", f'"{end_cursor}"' if end_cursor else "null")
@@ -29,6 +31,7 @@ def get_repositories(token, languages, threshold, max_repos, query_file="reposit
             repo = edge['node']
             if meets_language_criteria(repo['languages'], languages, threshold):
                 repositories.append(repo)
+                pbar.update(1)
                 if len(repositories) >= max_repos:
                     break
 
@@ -42,6 +45,10 @@ def get_repositories(token, languages, threshold, max_repos, query_file="reposit
 
 def meets_language_criteria(languages_data, specified_languages, threshold):
     total_size = languages_data['totalSize']
+    # Filter out tiny repositories
+    if total_size < 100000:
+        return False
+
     specified_languages_size = sum(
         edge['size'] for edge in languages_data['edges'] if edge['node']['name'] in specified_languages)
     percentage = (specified_languages_size / total_size) * 100 if total_size > 0 else 0
@@ -62,9 +69,10 @@ def calculate_language_percentages(languages_data):
 def main():
     parser = argparse.ArgumentParser(description="Fetch GitHub repositories based on language usage.")
     parser.add_argument("token", type=str, help="GitHub Personal Access Token")
-    parser.add_argument("--languages", nargs='+', default=['Python'], help="List of languages to filter")
-    parser.add_argument("--threshold", type=float, default=90.0, help="Minimum percentage threshold for specified languages")
-    parser.add_argument("--max_repos", type=int, default=10, help="Maximum number of repositories to fetch")
+    parser.add_argument("-l", "--languages", nargs='+', default=['Python'], help="List of languages to filter")
+    parser.add_argument("-t", "--threshold", type=float, default=90.0,
+                        help="Minimum percentage threshold for specified languages")
+    parser.add_argument("-m", "--max_repos", type=int, default=10, help="Maximum number of repositories to fetch")
     args = parser.parse_args()
 
     try:
@@ -74,7 +82,7 @@ def main():
             languages_percentages = calculate_language_percentages(languages_data)
             languages_str = ', '.join([f"{lang}: {percent:.2f}%" for lang, percent in languages_percentages.items()])
             print(
-                f"Name: {repo['name']}, Stars: {repo['stargazers']['totalCount']}, URL: {repo['url']}, Languages: {languages_str if languages_percentages else 'None'}")
+                f"Name: {repo['name']}, Stars: {repo['stargazerCount']}, URL: {repo['url']}, Languages: {languages_str if languages_percentages else 'None'}")
     except Exception as e:
         print(str(e))
 
