@@ -3,7 +3,7 @@
     <name>RefExpo Template</name>
     <vendor>vharatian</vendor>
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="RefExpoWindow" anchor="right" factoryClass="RefExpoToolWindowFactory"/>
+        <toolWindow id="RefExpo" anchor="right" factoryClass="RefExpoToolWindowFactory"/>
     </extensions>
     <!-- Additional configurations as needed -->
     <depends>com.intellij.modules.platform</depends>
