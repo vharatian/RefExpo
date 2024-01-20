@@ -1,44 +1,70 @@
 import json
-import os
+
+from loaders.data_loader import DataLoader, EvaluationLevel
 
 
-def load_jarviz(project):
-    # Construct the full file path
-    file_path = os.path.join('data', project, 'jarviz.jsonl')
+class JarvizDataLoader(DataLoader):
 
-    class_relations = []
-    method_relations = []
-    # Load and process the file
-    for json_object in load_jsonl_file(file_path):
-        sourceClass, sourceMethod, targetClass, targetMethod = extract_parameters(json_object)
+    def get_name(self):
+        return "Jarviz"
 
-        # Generate the formatted strings and add them to the lists
-        if sourceClass != targetClass:
-            class_relations.append(f"{sourceClass}->{targetClass}")
+    def get_file_name(self):
+        return 'jarviz.jsonl'
 
-        if sourceMethod != targetMethod:
-            method_relations.append(f"{sourceClass}:{sourceMethod}->{targetClass}:{targetMethod}")
+    def support_evaluation_level(self, evaluation_level: EvaluationLevel):
+        return evaluation_level in [EvaluationLevel.CLASS, EvaluationLevel.METHOD]
 
-    return class_relations, method_relations
+    def load(self, evaluation_level: EvaluationLevel):
+        if evaluation_level == EvaluationLevel.CLASS:
+            return self.load_class_data()
+        elif evaluation_level == EvaluationLevel.METHOD:
+            return self.load_method_data()
 
-
-def load_jsonl_file(file_path):
-    # Check if the file exists
-    if not os.path.isfile(file_path):
-        print(f"File not found: {file_path}")
         return None
 
-    # Load the JSONL file
-    with open(file_path, 'r') as file:
-        for line in file:
-            yield json.loads(line)
+    def load_method_data(self):
+        class_data, method_data = self.load_jarviz_data()
+        return method_data
 
+    def load_class_data(self):
+        class_data, method_data = self.load_jarviz_data()
+        return class_data
 
-def extract_parameters(json_object):
-    # Extract the required parameters
-    sourceClass = json_object.get('sourceClass', 'N/A')
-    sourceMethod = json_object.get('sourceMethod', 'N/A')
-    targetClass = json_object.get('targetClass', 'N/A')
-    targetMethod = json_object.get('targetMethod', 'N/A')
+    def load_jarviz_data(self):
+        # Construct the full file path
 
-    return sourceClass, sourceMethod, targetClass, targetMethod
+        class_relations = []
+        method_relations = []
+        # Load and process the file
+        for json_object in self.load_jsonl_file():
+            sourceClass, sourceMethod, targetClass, targetMethod = self.extract_parameters(json_object)
+
+            # Generate the formatted strings and add them to the lists
+            if sourceClass != targetClass:
+                class_relations.append(f"{sourceClass}->{targetClass}")
+
+            if sourceMethod != targetMethod:
+                method_relations.append(f"{sourceClass}:{sourceMethod}->{targetClass}:{targetMethod}")
+
+        return class_relations, method_relations
+
+    def load_jsonl_file(self):
+        # Check if the file exists
+        file_path = self.get_file_path()
+        if not self.file_exists():
+            print(f"File not found: {file_path}")
+            return None
+
+        # Load the JSONL file
+        with open(file_path, 'r') as file:
+            for line in file:
+                yield json.loads(line)
+
+    def extract_parameters(self, json_object):
+        # Extract the required parameters
+        sourceClass = json_object.get('sourceClass', 'N/A')
+        sourceMethod = json_object.get('sourceMethod', 'N/A')
+        targetClass = json_object.get('targetClass', 'N/A')
+        targetMethod = json_object.get('targetMethod', 'N/A')
+
+        return sourceClass, sourceMethod, targetClass, targetMethod

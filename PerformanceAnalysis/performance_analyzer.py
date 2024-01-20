@@ -1,13 +1,14 @@
 import argparse
 from collections import Counter
 
-from loaders.dependency_finder import load_dependencyfinder_data
-from loaders.jarviz import load_jarviz
-from loaders.refexpo import load_refexpo_data
-from loaders.snoragraph import load_sonargraph_data
+from loaders.data_loader import EvaluationLevel
+from loaders.dependency_finder import DependencyFinderDataLoader
+from loaders.jarviz import JarvizDataLoader
+from loaders.refexpo import RefExpoDataLoader
+from loaders.snoragraph import SonargraphDataLoader
 
 
-def compare_relations(*lists):
+def compare_relations(lists):
     unique_sets = [set(lst) for lst in lists]
     num_lists = len(unique_sets)
 
@@ -42,6 +43,7 @@ def compare_relations(*lists):
 
     return unique_elements_lists, shared_count, grouped_appearances_count
 
+
 # Function to extract the base path and file extension
 
 
@@ -51,32 +53,36 @@ def main():
     parser.add_argument('-p', '--project', type=str, required=True,
                         help='The name of the project folder under the data directory')
 
+    parser.add_argument('-e', '--evaluation', type=str, required=True, choices=['FILE', 'CLASS', 'METHOD'],
+                        help='The evaluation level to load data from')
+
     # Parse arguments
     args = parser.parse_args()
     project = args.project
+    evaluation_level = EvaluationLevel[args.evaluation]
 
-    # Load the data
-    sonargraph_class_relations = load_sonargraph_data(project)
-    # print(sonargraph_class_relations)
+    data_loaders = [
+        SonargraphDataLoader(project),
+        DependencyFinderDataLoader(project),
+        JarvizDataLoader(project),
+        RefExpoDataLoader(project)
+    ]
 
-    dependencyfinder_class_relations = load_dependencyfinder_data(project)
-    jarviz_class_relations, jarviz_method_relations = load_jarviz(project)
-    refexpo_class_relations, refexpo_method_relations = load_refexpo_data(project)
+    supporting_loaders = [dl for dl in data_loaders if
+                          dl.support_evaluation_level(evaluation_level) and dl.file_exists()]
+
+    data = [dl.load(evaluation_level) for dl in supporting_loaders]
 
     # Example usage in your main function
-    unique_elements_lists, shared_count, grouped_appearances_count = compare_relations(refexpo_class_relations,
-                                                                               sonargraph_class_relations,
-                                                                               jarviz_class_relations,
-                                                                               dependencyfinder_class_relations)
+    unique_elements_lists, shared_count, grouped_appearances_count = compare_relations(data)
 
-    for i, unique_elements in enumerate(unique_elements_lists, start=1):
-        print(f"Unique elements in list {i} -> {len(unique_elements)}")
+    for i, unique_elements in enumerate(unique_elements_lists):
+        print(f"Unique elements in list {supporting_loaders[i].get_name()} -> {len(unique_elements)}")
 
     print(f"Number of shared elements: {shared_count}")
     print(f"Count of elements by number of lists they appear in")
     for key, value in grouped_appearances_count.items():
         print(f"\t{key} -> {value}")
-
 
 if __name__ == "__main__":
     main()
