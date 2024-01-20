@@ -1,15 +1,16 @@
 package com.github.vharatian.refexpo.services
 
 import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
+import com.github.vharatian.refexpo.utils.isNullOrFalse
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.vcs.ProjectLevelVcsManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.*
+import com.intellij.webSymbols.references.WebSymbolReferenceProvider.Companion.startOffsetIn
 import java.io.BufferedWriter
 import java.io.File
-import com.github.vharatian.refexpo.utils.isNullOrFalse
 
 
 class RefExpoEvaluation(private val project: Project, private val config: RefExpoExecutionConfig) {
@@ -17,6 +18,7 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
     private val psiManager = PsiManager.getInstance(project)
     private val fileIndex = ProjectFileIndex.getInstance(project)
     private val vcsManager = ProjectLevelVcsManager.getInstance(project)
+    private val documentManage = PsiDocumentManager.getInstance(project)
 
     private val ignoredFilesRegex = config.ignoringFilesRegex.createRegex()
     private val ignoredClassesRegex = config.ignoringClassesRegex.createRegex()
@@ -138,13 +140,16 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
             }
 
             // Extract information from each reference
+
             val sourceFile = psiElement.containingFile?.virtualFile?.getRelativePath() ?: ""
-            val sourceClass = getClassName(psiElement)
-            val sourceMethod = findEnclosingElement<PsiMethod>(psiElement)?.name ?: ""
+            val sourceClass = getElementName(findEnclosingElement(psiElement, LocatorType.CLASS))
+            val sourceMethod = getElementName(findEnclosingElement(psiElement, LocatorType.METHOD))
+            val sourceLineNumber = documentManage.getDocument(psiElement.containingFile)?.getLineNumber(psiElement.getTextRange().getStartOffset())
 
             val destinationFile = target.containingFile.virtualFile.getRelativePath()
-            val destinationClass = getClassName(target)
-            val destinationMethod = findEnclosingElement<PsiMethod>(target)?.name ?: ""
+            val destinationClass = getElementName(findEnclosingElement(target, LocatorType.CLASS))
+            val destinationMethod = getElementName(findEnclosingElement(target, LocatorType.METHOD))
+            val destinationLineNumber = documentManage.getDocument(target.containingFile)?.getLineNumber(target.getTextRange().getStartOffset())
 
             // Ignore if the source and destination are the same
             if (ignored(sourceFile, destinationFile, sourceClass, destinationClass, sourceMethod, destinationMethod)) {
@@ -152,20 +157,20 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
             }
 
             val csvLine =
-                "$sourceFile,$sourceClass,$sourceMethod,$destinationFile,$destinationClass,$destinationMethod\n"
+                "$sourceFile,$sourceClass,$sourceMethod,$sourceLineNumber,$destinationFile,$destinationClass,$destinationMethod,$destinationLineNumber\n"
 
             writer.append(csvLine)
         }
     }
 
-    private fun getClassName(element: PsiElement): String {
-        val psiClass = findEnclosingElement<PsiClass>(element)
-        return if (config.addPackageName) {
-            psiClass?.qualifiedName ?: ""
-        } else {
-            psiClass?.name ?: ""
-        }
-    }
+//    private fun getClassName(element: PsiElement): String {
+//        val psiClass = findEnclosingElement<PsiClass>(element)
+//        return if (config.addPackageName) {
+//            psiClass?.qualifiedName ?: ""
+//        } else {
+//            psiClass?.name ?: ""
+//        }
+//    }
 
     private fun ignored(
         sourceFile: String,
@@ -193,11 +198,22 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
 
     private fun VirtualFile.getRelativePath() = path.replace("${project.basePath}/", "")
 
-    private inline fun <reified T : PsiElement> findEnclosingElement(element: PsiElement?): T? {
+    private inline fun findEnclosingElement(element: PsiElement?, locatorType: LocatorType): PsiElement? {
         var currentElement = element
-        while (currentElement != null && currentElement !is T) {
+        while (currentElement != null && !locatorType.matches(currentElement)) {
             currentElement = currentElement.parent
         }
-        return currentElement as? T
+
+        return currentElement
+    }
+
+    private fun getElementName(element: PsiElement?): String {
+        if (element == null)
+            return ""
+
+        if (element is PsiNamedElement)
+            return element.name ?: ""
+
+        return ""
     }
 }
