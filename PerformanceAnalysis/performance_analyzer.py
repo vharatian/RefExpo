@@ -6,6 +6,7 @@ from loaders.dependency_finder import DependencyFinderDataLoader
 from loaders.jarviz import JarvizDataLoader
 from loaders.refexpo import RefExpoDataLoader
 from loaders.snoragraph import SonargraphDataLoader
+from loaders.pycg import PyCGDataLoader
 
 
 def compare_relations(lists):
@@ -65,7 +66,8 @@ def main():
         SonargraphDataLoader(project),
         DependencyFinderDataLoader(project),
         JarvizDataLoader(project),
-        RefExpoDataLoader(project)
+        RefExpoDataLoader(project),
+        PyCGDataLoader(project)
     ]
 
     supporting_loaders = [dl for dl in data_loaders if

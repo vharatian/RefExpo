@@ -9,15 +9,15 @@ class EvaluationLevel(Enum):
 
 
 class DataLoader(object):
-    def __init__(self, project, dataFolder='data'):
+    def __init__(self, project, data_folder='data'):
         self.project = project
-        self.dataFolder = dataFolder
+        self.data_folder = data_folder
 
     def file_exists(self):
         return os.path.isfile(self.get_file_path())
 
     def get_file_path(self):
-        return os.path.join(self.dataFolder, self.project, self.get_file_name())
+        return os.path.join(self.data_folder, self.project, self.get_file_name())
 
     def get_name(self):
         raise NotImplementedError
