@@ -2,13 +2,28 @@ package com.github.vharatian.refexpo.services
 
 import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
 import com.github.vharatian.refexpo.utils.isNullOrFalse
+import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler
+import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandlerBase
+import com.intellij.lang.javascript.psi.ecmal4.JSQualifiedNamedElement
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.extensions.ExtensionPointName
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.impl.text.PsiAwareTextEditorImpl
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.vcs.ProjectLevelVcsManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.*
-import com.intellij.webSymbols.references.WebSymbolReferenceProvider.Companion.startOffsetIn
+import com.intellij.psi.search.GlobalSearchScope
+import com.jetbrains.python.psi.PyPsiFacade
+import com.jetbrains.python.psi.PyQualifiedNameOwner
+import com.jetbrains.python.psi.PyReferenceExpression
+import com.jetbrains.python.psi.PyReferenceOwner
+import com.jetbrains.python.psi.resolve.PyResolveContext
+import com.jetbrains.python.psi.resolve.PyResolveUtil
+import com.jetbrains.python.psi.types.TypeEvalContext
+import com.jetbrains.rd.util.qualifiedName
 import java.io.BufferedWriter
 import java.io.File
 
@@ -23,17 +38,20 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
     private val ignoredFilesRegex = config.ignoringFilesRegex.createRegex()
     private val ignoredClassesRegex = config.ignoringClassesRegex.createRegex()
     private val ignoredMethodsRegex = config.ignoringMethodsRegex.createRegex()
+    private val scope = GlobalSearchScope.projectScope(project)
+    private var problemCount = 0
 
-    private fun String.createRegex() = if (isNotEmpty())
-    {
+    private val extensionPointName = ExtensionPointName.create<Any>("com.intellij.gotoDeclarationHandler")
+    private val declarationhandler = extensionPointName.extensionList.filter { it is GotoDeclarationHandler }.toList()
+
+    private fun String.createRegex() = if (isNotEmpty()) {
 //            var regex = this
 //
 //            if (!regex.startsWith(".")) regex = ".$regex"
 //            if (!regex.endsWith("$")) regex = "$regex$"
 
-            Regex(this)
-        } else null
-
+        Regex(this)
+    } else null
 
 
     fun runInspections(progressIndicator: ProgressIndicator) {
@@ -85,13 +103,15 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
         val csvFile = createOutputFile(config.filePath)
 
         csvFile.bufferedWriter().use { writer ->
-            writer.write("SourceFile,SourceClass,SourceMethod,TargetFile,TargetClass,TargetMethod\n")
+            writer.write("SourceFile,SourceClass,SourceMethod,SourceStructure,SourceLine,TargetFile,TargetClass,TargetMethod,TargetStructure,TargetLine\n")
 
             val visitor = ErrorResilientVisitor { element ->
                 processElement(element, writer)
             }
 
             runOverAllFiles(projectFiles, visitor, progressIndicator)
+
+            println("************************** Unresolved references: $problemCount ******************************")
 
             writer.flush()
             writer.close()
@@ -130,26 +150,65 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
 
     private fun processElement(psiElement: PsiElement, writer: BufferedWriter) {
         // Check all references of the psiElement
-        val references = psiElement.references
+
+
+        var references = psiElement.references.toList()
+//        references += ReferencesSearch.search(psiElement, scope)
+
         for (ref in references) {
 
+            if (psiElement.text == "(x+y).component") {
+//                (psiElement as Navigatable).navigate(true)
+                val a = 5
+
+            }
+
             //Check if the destination of the reference is valid
-            val target = ref.resolve()
-            if (target == null || target.containingFile == null || !target.containingFile.virtualFile.isValidForInspection()) {
+            var target = ref.resolve()
+            if (target == null) {
+                target = tryDeclarationHandlers(psiElement)
+                if (target != null){
+                    val a = 5
+                }
+            }
+
+//            if (target == null) {
+//                target = tryToFetchDeclaration(psiElement)
+//                if (target != null){
+//                    val a = 5
+//                }
+//            }
+
+            if (target == null) {
+                problemCount++;
+                continue
+            }
+
+            if (target.containingFile == null || !target.containingFile.virtualFile.isValidForInspection()) {
                 continue
             }
 
             // Extract information from each reference
 
-            val sourceFile = psiElement.containingFile?.virtualFile?.getRelativePath() ?: ""
-            val sourceClass = getElementName(findEnclosingElement(psiElement, LocatorType.CLASS))
-            val sourceMethod = getElementName(findEnclosingElement(psiElement, LocatorType.METHOD))
-            val sourceLineNumber = documentManage.getDocument(psiElement.containingFile)?.getLineNumber(psiElement.getTextRange().getStartOffset())
+            val sourceFile = ref.element.containingFile?.virtualFile?.getRelativePath() ?: ""
+            val sourceClass = getElementName(findEnclosingElement(ref.element, LocatorType.CLASS))
+            val sourceMethodElement = findEnclosingElement(ref.element, LocatorType.METHOD)
+            val sourceMethod = getElementName(sourceMethodElement)
+            val sourceStructure = getStructure(sourceMethodElement)
+            val sourceLineNumber = documentManage.getDocument(ref.element.containingFile)
+                ?.getLineNumber(ref.element.textRangeInParent.startOffset)
+
+//            if (sourceMethodElement != null && sourceStructure.isNullOrEmpty()){
+//                (sourceMethodElement as PyQualifiedNameOwner).qualifiedName
+//                val a = 5
+//            }
 
             val destinationFile = target.containingFile.virtualFile.getRelativePath()
             val destinationClass = getElementName(findEnclosingElement(target, LocatorType.CLASS))
             val destinationMethod = getElementName(findEnclosingElement(target, LocatorType.METHOD))
-            val destinationLineNumber = documentManage.getDocument(target.containingFile)?.getLineNumber(target.getTextRange().getStartOffset())
+            val destinationStructure = getStructure(findEnclosingElement(target, LocatorType.METHOD))
+            val destinationLineNumber =
+                documentManage.getDocument(target.containingFile)?.getLineNumber(target.textRangeInParent.startOffset)
 
             // Ignore if the source and destination are the same
             if (ignored(sourceFile, destinationFile, sourceClass, destinationClass, sourceMethod, destinationMethod)) {
@@ -157,10 +216,47 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
             }
 
             val csvLine =
-                "$sourceFile,$sourceClass,$sourceMethod,$sourceLineNumber,$destinationFile,$destinationClass,$destinationMethod,$destinationLineNumber\n"
+                "$sourceFile,$sourceClass,$sourceMethod,$sourceStructure,$sourceLineNumber,$destinationFile,$destinationClass,$destinationMethod,$destinationStructure,$destinationLineNumber\n"
 
             writer.append(csvLine)
         }
+    }
+
+
+//    private fun tryToFetchDeclaration(psiElement: PsiElement): PsiElement? {
+//        val context = PyResolveContext.defaultContext(
+//            TypeEvalContext.userInitiated(
+//                psiElement.getProject(),
+//                psiElement.getContainingFile()
+//            )
+//        )
+//        var referenceOwner: PyReferenceOwner? = null
+//        val parent: PsiElement = psiElement.parent
+//        if (psiElement is PyReferenceOwner) {
+//            referenceOwner = psiElement as PyReferenceOwner?
+//        } else if (parent is PyReferenceOwner) {
+//            referenceOwner = parent
+//        }
+//
+//        val element: PsiElement?
+//        if (referenceOwner != null) {
+//            element = PyResolveUtil.resolveDeclaration(referenceOwner.getReference(context), context)
+//        } else {
+//            element = null
+//        }
+//
+//        return element
+//    }
+
+    private fun tryDeclarationHandlers(psiElement: PsiElement): PsiElement? {
+        val first = FileEditorManager.getInstance(project).allEditors[0]
+        val editor = (first as PsiAwareTextEditorImpl).editor
+
+        val newTargets = extensionPointName.extensionList.filter { it is GotoDeclarationHandler }.flatMap {
+            (it as GotoDeclarationHandler).getGotoDeclarationTargets(psiElement, 0, editor)?.toList() ?: emptyList()
+        }
+
+        return newTargets.firstOrNull()
     }
 
 //    private fun getClassName(element: PsiElement): String {
@@ -215,5 +311,44 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
             return element.name ?: ""
 
         return ""
+    }
+
+    private fun getQualifiedElementName(element: PsiElement?): String {
+        if (element == null)
+            return ""
+
+        if (element is PsiQualifiedNamedElement)
+            return element.qualifiedName ?: ""
+
+        if (element is PyQualifiedNameOwner)
+            return element.qualifiedName ?: ""
+
+        if (element is JSQualifiedNamedElement)
+            return element.qualifiedName ?: ""
+
+        return ""
+    }
+
+    private fun getStructure(element: PsiElement?): String {
+        var parent = element
+        var result = ""
+        while (parent != null && parent.isValid) {
+
+            if (LocatorType.CLASS.matches(parent) || LocatorType.METHOD.matches(parent)) {
+                val elementName = getElementName(parent)
+                if (elementName.isNotBlank()) {
+                    if (result.isNotEmpty()) {
+                        result = ".$result"
+                    }
+
+                    result = "$elementName$result"
+                }
+
+            }
+
+            parent = parent.parent
+        }
+
+        return result
     }
 }

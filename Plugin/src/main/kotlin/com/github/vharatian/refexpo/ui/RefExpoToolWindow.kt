@@ -1,6 +1,6 @@
 import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
 import com.github.vharatian.refexpo.ui.InspectionRunner
-import com.intellij.openapi.compiler.CompilerManager
+//import com.intellij.openapi.compiler.CompilerManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
@@ -11,11 +11,10 @@ class RefExpoToolWindow(private val project: Project) {
     private val runButton = JButton("Run Inspection")
     private val statusLabel = JLabel()
     private val mainPanel = JPanel()
-    private val filePathField = JTextField("references.csv")
+    private val filePathField = JTextField("refExpo.csv")
     private val ignoreInterFile = JCheckBox("Ignore intra file referencing")
     private val ignoreInterClass = JCheckBox("Ignore intra class referencing")
     private val ignoreInterMethod = JCheckBox("Ignore intra method referencing")
-    private val addPackageName = JCheckBox("Include package name in classes")
     private val ignoringFilesRegex = JTextField("")
     private val ignoringClassesRegex = JTextField("")
     private val ignoringMethodsRegex = JTextField("")
@@ -44,7 +43,6 @@ class RefExpoToolWindow(private val project: Project) {
         addComponent(prepareLefAlignedComponent(ignoreInterFile))
         addComponent(prepareLefAlignedComponent(ignoreInterClass), false)
         addComponent(prepareLefAlignedComponent(ignoreInterMethod), false)
-        addComponent(prepareLefAlignedComponent(addPackageName), false)
 
         // Configure and add run button
         runButton.addActionListener { runInspection() }
@@ -76,7 +74,7 @@ class RefExpoToolWindow(private val project: Project) {
     }
 
     private fun runInspection() {
-        val filePath = filePathField.text ?: "references.csv"
+        val filePath = filePathField.text ?: "refExpo.csv"
 
         if (filePath.isEmpty()) {
             setStatusMessage("Please enter a valid file path")
@@ -103,8 +101,7 @@ class RefExpoToolWindow(private val project: Project) {
             ignoringMethodsRegex.text,
             ignoreInterFile.isSelected,
             ignoreInterClass.isSelected,
-            ignoreInterMethod.isSelected,
-            addPackageName.isSelected
+            ignoreInterMethod.isSelected
         )
 
         runInspectionAction.run(config, ::onFinished)
@@ -121,7 +118,8 @@ class RefExpoToolWindow(private val project: Project) {
     }
 
     private fun isBuildInProgress(project: Project): Boolean {
-        return CompilerManager.getInstance(project).isCompilationActive
+        return false
+//        return CompilerManager.getInstance(project).isCompilationActive
     }
 
     fun onFinished(success: Boolean) {

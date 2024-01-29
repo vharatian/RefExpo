@@ -7,6 +7,5 @@ class RefExpoExecutionConfig(
     val ignoringMethodsRegex: String,
     val ignoreInterFile: Boolean,
     val ignoreInterClass: Boolean,
-    val ignoreInterMethod: Boolean,
-    val addPackageName: Boolean
+    val ignoreInterMethod: Boolean
 )
