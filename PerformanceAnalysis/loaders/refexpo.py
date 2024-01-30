@@ -64,7 +64,7 @@ class RefExpoDataLoader(DataLoader):
 
     def get_class(self, row, source=True, ignore_nan=True):
         indicator_tag = self.get_indicator_tag(source)
-        package_name = self.extract_package_or_module_name(row[f'{indicator_tag}File'])
+        package_name = self.extract_package_or_module_name(row[f'{indicator_tag}Path'])
 
         class_name = row[f'{indicator_tag}Class']
         if f"{class_name}" == 'nan':
@@ -80,7 +80,7 @@ class RefExpoDataLoader(DataLoader):
 
     def get_structure(self, row, source=True, ignore_nan=True):
         indicator_tag = self.get_indicator_tag(source)
-        package_name = self.extract_package_or_module_name(row[f'{indicator_tag}File'])
+        package_name = self.extract_package_or_module_name(row[f'{indicator_tag}Path'])
 
         structure = row[f'{indicator_tag}Structure']
         if f"{structure}" == 'nan' or structure == '':
@@ -109,7 +109,7 @@ class RefExpoDataLoader(DataLoader):
         return method_name
 
     def get_indicator_tag(self, source):
-        return 'Source' if source else 'Target'
+        return 'source' if source else 'target'
 
     def filter_nans(self, relations):
         return [relation for relation in relations if 'nan' not in relation]

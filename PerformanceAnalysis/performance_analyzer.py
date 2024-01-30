@@ -1,12 +1,15 @@
 import argparse
 from collections import Counter
 
+from matplotlib import pyplot as plt
+
 from loaders.data_loader import EvaluationLevel
 from loaders.dependency_finder import DependencyFinderDataLoader
 from loaders.jarviz import JarvizDataLoader
 from loaders.refexpo import RefExpoDataLoader
 from loaders.snoragraph import SonargraphDataLoader
 from loaders.pycg import PyCGDataLoader
+from pyvenn import venn
 
 
 def compare_relations(lists):
@@ -45,8 +48,26 @@ def compare_relations(lists):
     return unique_elements_lists, shared_count, grouped_appearances_count
 
 
-# Function to extract the base path and file extension
+def draw_venn_diagram(lists, set_labels):
+    # Create a list of sets
+    data = [set(lst) for lst in lists]
 
+    # Generate labels for the sets (optional)
+    labels = venn.get_labels(data, fill=['number', 'logic'])
+
+    # Create a Venn diagram based on the data
+    diagrams = {
+        2: venn.venn2,
+        3: venn.venn3,
+        4: venn.venn4,
+        5: venn.venn5,
+        6: venn.venn6,
+    }
+
+    fig, _ = diagrams[len(data)](labels, names=set_labels)
+
+    # Set the title and display the diagram
+    fig.show()
 
 def main():
     # Set up argument parser
@@ -78,13 +99,17 @@ def main():
     # Example usage in your main function
     unique_elements_lists, shared_count, grouped_appearances_count = compare_relations(data)
 
+    set_labels = [dl.get_name() for dl in supporting_loaders]
+
     for i, unique_elements in enumerate(unique_elements_lists):
-        print(f"Unique elements in list {supporting_loaders[i].get_name()} -> {len(unique_elements)}")
+        print(f"Unique elements in list {set_labels[i]} -> {len(unique_elements)}")
 
     print(f"Number of shared elements: {shared_count}")
     print(f"Count of elements by number of lists they appear in")
     for key, value in grouped_appearances_count.items():
         print(f"\t{key} -> {value}")
+
+    draw_venn_diagram(data, set_labels)
 
 if __name__ == "__main__":
     main()

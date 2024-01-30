@@ -1,11 +1,10 @@
 package com.github.vharatian.refexpo.services
 
+import com.github.vharatian.refexpo.models.CsvStreamWriter
+import com.github.vharatian.refexpo.models.FlatReferenceOutput
 import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
 import com.github.vharatian.refexpo.utils.isNullOrFalse
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler
-import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandlerBase
-import com.intellij.lang.javascript.psi.ecmal4.JSQualifiedNamedElement
-import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.impl.text.PsiAwareTextEditorImpl
@@ -16,24 +15,15 @@ import com.intellij.openapi.vcs.ProjectLevelVcsManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.*
 import com.intellij.psi.search.GlobalSearchScope
-import com.jetbrains.python.psi.PyPsiFacade
-import com.jetbrains.python.psi.PyQualifiedNameOwner
-import com.jetbrains.python.psi.PyReferenceExpression
-import com.jetbrains.python.psi.PyReferenceOwner
-import com.jetbrains.python.psi.resolve.PyResolveContext
-import com.jetbrains.python.psi.resolve.PyResolveUtil
-import com.jetbrains.python.psi.types.TypeEvalContext
-import com.jetbrains.rd.util.qualifiedName
-import java.io.BufferedWriter
 import java.io.File
 
 
 class RefExpoEvaluation(private val project: Project, private val config: RefExpoExecutionConfig) {
 
+    private val outputCreateor = ReferenceOutputCreator(project)
     private val psiManager = PsiManager.getInstance(project)
     private val fileIndex = ProjectFileIndex.getInstance(project)
     private val vcsManager = ProjectLevelVcsManager.getInstance(project)
-    private val documentManage = PsiDocumentManager.getInstance(project)
 
     private val ignoredFilesRegex = config.ignoringFilesRegex.createRegex()
     private val ignoredClassesRegex = config.ignoringClassesRegex.createRegex()
@@ -42,7 +32,7 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
     private var problemCount = 0
 
     private val extensionPointName = ExtensionPointName.create<Any>("com.intellij.gotoDeclarationHandler")
-    private val declarationhandler = extensionPointName.extensionList.filter { it is GotoDeclarationHandler }.toList()
+    private val declarationHandlers = extensionPointName.extensionList.filter { it is GotoDeclarationHandler }.toList()
 
     private fun String.createRegex() = if (isNotEmpty()) {
 //            var regex = this
@@ -73,7 +63,7 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
                 val file = psiManager.findFile(it)
 
                 file?.let {
-                    val filepath = file.virtualFile.getRelativePath()
+                    val filepath = getRelativePath(file.virtualFile)
                     progressIndicator.text2 = "${files.size} -> $filepath"
 
                     if (ignoredFilesRegex?.matches(filepath).isNullOrFalse()) {
@@ -86,6 +76,8 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
 
         return files
     }
+
+    private fun getRelativePath(file: VirtualFile?) = file?.path?.replace("${project.basePath}/", "") ?: ""
 
 
     fun loadProjectFiles(projectFiles: List<PsiFile>, progressIndicator: ProgressIndicator) {
@@ -101,9 +93,8 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
         projectFiles: List<PsiFile>, progressIndicator: ProgressIndicator
     ) {
         val csvFile = createOutputFile(config.filePath)
+        CsvStreamWriter(csvFile, FlatReferenceOutput::class).use { writer ->
 
-        csvFile.bufferedWriter().use { writer ->
-            writer.write("SourceFile,SourceClass,SourceMethod,SourceStructure,SourceLine,TargetFile,TargetClass,TargetMethod,TargetStructure,TargetLine\n")
 
             val visitor = ErrorResilientVisitor { element ->
                 processElement(element, writer)
@@ -112,9 +103,6 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
             runOverAllFiles(projectFiles, visitor, progressIndicator)
 
             println("************************** Unresolved references: $problemCount ******************************")
-
-            writer.flush()
-            writer.close()
         }
     }
 
@@ -148,7 +136,7 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
         return csvFile
     }
 
-    private fun processElement(psiElement: PsiElement, writer: BufferedWriter) {
+    private fun processElement(psiElement: PsiElement, writer: CsvStreamWriter<FlatReferenceOutput>) {
         // Check all references of the psiElement
 
 
@@ -167,7 +155,7 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
             var target = ref.resolve()
             if (target == null) {
                 target = tryDeclarationHandlers(psiElement)
-                if (target != null){
+                if (target != null) {
                     val a = 5
                 }
             }
@@ -188,71 +176,24 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
                 continue
             }
 
-            // Extract information from each reference
+            outputCreateor.createOutput(psiElement, target).let { refOut ->
+                if (ignored(refOut)) {
+                    return
+                }
 
-            val sourceFile = ref.element.containingFile?.virtualFile?.getRelativePath() ?: ""
-            val sourceClass = getElementName(findEnclosingElement(ref.element, LocatorType.CLASS))
-            val sourceMethodElement = findEnclosingElement(ref.element, LocatorType.METHOD)
-            val sourceMethod = getElementName(sourceMethodElement)
-            val sourceStructure = getStructure(sourceMethodElement)
-            val sourceLineNumber = documentManage.getDocument(ref.element.containingFile)
-                ?.getLineNumber(ref.element.textRangeInParent.startOffset)
-
-//            if (sourceMethodElement != null && sourceStructure.isNullOrEmpty()){
-//                (sourceMethodElement as PyQualifiedNameOwner).qualifiedName
-//                val a = 5
-//            }
-
-            val destinationFile = target.containingFile.virtualFile.getRelativePath()
-            val destinationClass = getElementName(findEnclosingElement(target, LocatorType.CLASS))
-            val destinationMethod = getElementName(findEnclosingElement(target, LocatorType.METHOD))
-            val destinationStructure = getStructure(findEnclosingElement(target, LocatorType.METHOD))
-            val destinationLineNumber =
-                documentManage.getDocument(target.containingFile)?.getLineNumber(target.textRangeInParent.startOffset)
-
-            // Ignore if the source and destination are the same
-            if (ignored(sourceFile, destinationFile, sourceClass, destinationClass, sourceMethod, destinationMethod)) {
-                continue
+                writer.write(refOut)
             }
 
-            val csvLine =
-                "$sourceFile,$sourceClass,$sourceMethod,$sourceStructure,$sourceLineNumber,$destinationFile,$destinationClass,$destinationMethod,$destinationStructure,$destinationLineNumber\n"
 
-            writer.append(csvLine)
         }
     }
 
-
-//    private fun tryToFetchDeclaration(psiElement: PsiElement): PsiElement? {
-//        val context = PyResolveContext.defaultContext(
-//            TypeEvalContext.userInitiated(
-//                psiElement.getProject(),
-//                psiElement.getContainingFile()
-//            )
-//        )
-//        var referenceOwner: PyReferenceOwner? = null
-//        val parent: PsiElement = psiElement.parent
-//        if (psiElement is PyReferenceOwner) {
-//            referenceOwner = psiElement as PyReferenceOwner?
-//        } else if (parent is PyReferenceOwner) {
-//            referenceOwner = parent
-//        }
-//
-//        val element: PsiElement?
-//        if (referenceOwner != null) {
-//            element = PyResolveUtil.resolveDeclaration(referenceOwner.getReference(context), context)
-//        } else {
-//            element = null
-//        }
-//
-//        return element
-//    }
 
     private fun tryDeclarationHandlers(psiElement: PsiElement): PsiElement? {
         val first = FileEditorManager.getInstance(project).allEditors[0]
         val editor = (first as PsiAwareTextEditorImpl).editor
 
-        val newTargets = extensionPointName.extensionList.filter { it is GotoDeclarationHandler }.flatMap {
+        val newTargets = declarationHandlers.flatMap {
             (it as GotoDeclarationHandler).getGotoDeclarationTargets(psiElement, 0, editor)?.toList() ?: emptyList()
         }
 
@@ -269,86 +210,28 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
 //    }
 
     private fun ignored(
-        sourceFile: String,
-        destinationFile: String,
-        sourceClass: String,
-        destinationClass: String,
-        sourceMethod: String,
-        destinationMethod: String
+        output: FlatReferenceOutput
     ): Boolean {
-        if (config.ignoreInterFile && sourceFile == destinationFile) return true
-        if (config.ignoreInterClass && sourceFile == destinationFile && sourceClass == destinationClass) return true
-        if (config.ignoreInterMethod && sourceFile == destinationFile && sourceClass == destinationClass && sourceMethod == destinationMethod) return true
+        val sameFile = output.sourcePath == output.targetPath
+        val sameClass = sameFile && output.sourceClass == output.targetClass
+        val sameMethod = sameClass && output.sourceMethod == output.targetMethod
 
-        if (ignoredFilesRegex?.matches(sourceFile) == true) return true
-        if (ignoredFilesRegex?.matches(destinationFile) == true) return true
-        if (ignoredClassesRegex?.matches(sourceClass) == true) return true
-        if (ignoredClassesRegex?.matches(destinationClass) == true) return true
-        if (ignoredMethodsRegex?.matches(sourceMethod) == true) return true
-        if (ignoredMethodsRegex?.matches(destinationMethod) == true) return true
+        if (config.ignoreInterFile && sameFile) return true
+        if (config.ignoreInterClass && sameClass) return true
+        if (config.ignoreInterMethod && sameMethod) return true
+
+        if (ignoredFilesRegex?.matches(output.sourcePath) == true) return true
+        if (ignoredFilesRegex?.matches(output.targetPath) == true) return true
+        if (ignoredClassesRegex?.matches(output.sourceClass) == true) return true
+        if (ignoredClassesRegex?.matches(output.targetClass) == true) return true
+        if (ignoredMethodsRegex?.matches(output.sourceMethod) == true) return true
+        if (ignoredMethodsRegex?.matches(output.targetMethod) == true) return true
         return false
     }
 
     private fun VirtualFile.isValidForInspection() =
         !isDirectory && !fileIndex.isInLibrary(this) && vcsManager.isFileInContent(this) && !name.contains(".gradle.kts")
 
-    private fun VirtualFile.getRelativePath() = path.replace("${project.basePath}/", "")
 
-    private inline fun findEnclosingElement(element: PsiElement?, locatorType: LocatorType): PsiElement? {
-        var currentElement = element
-        while (currentElement != null && !locatorType.matches(currentElement)) {
-            currentElement = currentElement.parent
-        }
 
-        return currentElement
-    }
-
-    private fun getElementName(element: PsiElement?): String {
-        if (element == null)
-            return ""
-
-        if (element is PsiNamedElement)
-            return element.name ?: ""
-
-        return ""
-    }
-
-    private fun getQualifiedElementName(element: PsiElement?): String {
-        if (element == null)
-            return ""
-
-        if (element is PsiQualifiedNamedElement)
-            return element.qualifiedName ?: ""
-
-        if (element is PyQualifiedNameOwner)
-            return element.qualifiedName ?: ""
-
-        if (element is JSQualifiedNamedElement)
-            return element.qualifiedName ?: ""
-
-        return ""
-    }
-
-    private fun getStructure(element: PsiElement?): String {
-        var parent = element
-        var result = ""
-        while (parent != null && parent.isValid) {
-
-            if (LocatorType.CLASS.matches(parent) || LocatorType.METHOD.matches(parent)) {
-                val elementName = getElementName(parent)
-                if (elementName.isNotBlank()) {
-                    if (result.isNotEmpty()) {
-                        result = ".$result"
-                    }
-
-                    result = "$elementName$result"
-                }
-
-            }
-
-            parent = parent.parent
-        }
-
-        return result
-    }
 }
