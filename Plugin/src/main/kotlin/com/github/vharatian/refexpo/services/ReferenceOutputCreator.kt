@@ -9,7 +9,9 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.PsiQualifiedNamedElement
+import com.jetbrains.python.psi.PyNamedElementContainer
 import com.jetbrains.python.psi.PyQualifiedNameOwner
+import com.jetbrains.rd.util.qualifiedName
 
 class ReferenceOutputCreator(val project: Project) {
 
@@ -25,14 +27,17 @@ class ReferenceOutputCreator(val project: Project) {
 
     private fun extractLocators(element: PsiElement): Locator {
         val path = getRelativePath(element.containingFile?.virtualFile)
-        val clazz = getElementName(findEnclosingElement(element, LocatorType.CLASS))
+        val classElement = findEnclosingElement(element, LocatorType.CLASS)
+        val clazz = getElementName(classElement)
+        val classQualifiedName = getQualifiedElementName(classElement)
         val methodElement = findEnclosingElement(element, LocatorType.METHOD)
         val method = getElementName(methodElement)
+        val methodQualifiedName = getQualifiedElementName(methodElement)
         val structure = getStructure(methodElement)
         val lineNumber = documentManage.getDocument(element.containingFile)
             ?.getLineNumber(element.textRangeInParent.startOffset) ?: 0
 
-        return Locator(path, lineNumber, clazz, method, structure)
+        return Locator(path, lineNumber, clazz, classQualifiedName, method, methodQualifiedName, structure)
     }
 
     private fun getRelativePath(file: VirtualFile?) = file?.path?.replace("${project.basePath}/", "") ?: ""

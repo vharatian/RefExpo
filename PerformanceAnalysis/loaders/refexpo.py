@@ -52,7 +52,7 @@ class RefExpoDataLoader(DataLoader):
             if source_class != target_class:
                 class_relations.append(f"{source_class}->{target_class}")
 
-        # class_relations = self.filter_nans(class_relations)
+        class_relations = self.filter_nans(class_relations)
         method_relations = self.filter_nans(method_relations)
 
         method_relations = self.filter_python_management_methods(method_relations)
@@ -64,17 +64,10 @@ class RefExpoDataLoader(DataLoader):
 
     def get_class(self, row, source=True, ignore_nan=True):
         indicator_tag = self.get_indicator_tag(source)
-        package_name = self.extract_package_or_module_name(row[f'{indicator_tag}Path'])
 
-        class_name = row[f'{indicator_tag}Class']
-        if f"{class_name}" == 'nan':
-            if ignore_nan:
-                return None
-
-            return package_name
-
-        if package_name is not None:
-            return f"{package_name}.{class_name}"
+        class_name = row[f'{indicator_tag}ClassFull']
+        if f"{class_name}" == 'nan' and ignore_nan:
+            return None
 
         return class_name
 
@@ -123,7 +116,7 @@ class RefExpoDataLoader(DataLoader):
         else:
             return None
 
-    def extrac_java_package_name(relative_path):
+    def extrac_java_package_name(self, relative_path):
         file_extension = ".java"
         base_directory = "src/main/java/"
 
