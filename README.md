@@ -11,7 +11,7 @@ RefExpo is an IntelliJ plugin that constructs a dependency graph of a project. I
 
 ## Installation
 
-To install the RefExpo plugin, follow these steps:
+To install the RefExpo plugin you can go directly to [RefExpo page](https://plugins.jetbrains.com/plugin/23684-refexpo), or follow these steps:
 
 1. Open IntelliJ IDEA.
 2. Go to `File > Settings > Plugins`.

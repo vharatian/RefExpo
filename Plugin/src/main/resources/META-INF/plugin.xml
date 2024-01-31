@@ -1,7 +1,11 @@
 <idea-plugin>
     <id>com.github.vharatian.refexpo</id>
-    <name>RefExpo Template</name>
-    <vendor>vharatian</vendor>
+    <name>RefExpo</name>
+    <vendor>Vahid Haratian</vendor>
+    <description>
+        RefExpo is an IntelliJ plugin that constructs a dependency graph of a project. It supports all languages that IntelliJ supports.
+    </description>
+
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="RefExpo" anchor="right" factoryClass="RefExpoToolWindowFactory"/>
     </extensions>

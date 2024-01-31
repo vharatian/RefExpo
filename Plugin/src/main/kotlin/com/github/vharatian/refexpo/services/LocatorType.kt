@@ -16,9 +16,12 @@ val matchingNames = mapOf(
 fun LocatorType.matches(element: PsiElement): Boolean {
     if (element.elementType == null) return false
 
-    val elementType = element.elementType!!
+    val elementTypeName = element.elementType
+        .toString()
+        .lowercase()
+
     matchingNames[this]?.forEach {
-        if (elementType.debugName.lowercase().contains(it)) return true
+        if (elementTypeName.contains(it)) return true
     }
 
     return false
