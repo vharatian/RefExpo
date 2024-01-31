@@ -1,16 +1,18 @@
+//import com.intellij.openapi.compiler.CompilerManager
 import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
 import com.github.vharatian.refexpo.ui.InspectionRunner
-//import com.intellij.openapi.compiler.CompilerManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
-import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBScrollPane
 import java.awt.*
 import javax.swing.*
+
 
 class RefExpoToolWindow(private val project: Project) {
     private val runButton = JButton("Run Inspection")
     private val statusLabel = JLabel()
-    private val mainPanel = JPanel()
+    private val contentPanel = JPanel()
+    private val rootPanel= JPanel(BorderLayout())
     private val filePathField = JTextField("refExpo.csv")
     private val ignoreInterFile = JCheckBox("Ignore intra file referencing")
     private val ignoreInterClass = JCheckBox("Ignore intra class referencing")
@@ -22,7 +24,7 @@ class RefExpoToolWindow(private val project: Project) {
     private val verticalPadding = 20
 
     init {
-        mainPanel.layout = BoxLayout(mainPanel, BoxLayout.Y_AXIS)
+        contentPanel.layout = BoxLayout(contentPanel, BoxLayout.Y_AXIS)
 
         // Configure components and add them to the main panel with padding
         statusLabel.alignmentX = JPanel.CENTER_ALIGNMENT
@@ -49,6 +51,9 @@ class RefExpoToolWindow(private val project: Project) {
         runButton.alignmentX = JPanel.CENTER_ALIGNMENT
         addComponent(runButton)
 
+        val scrollPane = JBScrollPane(contentPanel,JBScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JBScrollPane.HORIZONTAL_SCROLLBAR_NEVER)
+        rootPanel.add(scrollPane, BorderLayout.CENTER)
+
         setStatusMessage("Ready")
     }
 
@@ -68,9 +73,9 @@ class RefExpoToolWindow(private val project: Project) {
 
     private fun addComponent(component: JComponent, padding: Boolean = true) {
         if (padding)
-            mainPanel.add(Box.createVerticalStrut(verticalPadding))
+            contentPanel.add(Box.createVerticalStrut(verticalPadding))
 
-        mainPanel.add(component)
+        contentPanel.add(component)
     }
 
     private fun runInspection() {
@@ -107,7 +112,7 @@ class RefExpoToolWindow(private val project: Project) {
         runInspectionAction.run(config, ::onFinished)
     }
 
-    fun getContent(): JPanel = mainPanel
+    fun getContent(): JPanel = rootPanel
 
     fun setButtonEnabled(enabled: Boolean) {
         runButton.isEnabled = enabled
