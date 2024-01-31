@@ -3,7 +3,7 @@ package com.github.vharatian.refexpo.services
 import com.github.vharatian.refexpo.models.CsvStreamWriter
 import com.github.vharatian.refexpo.models.FlatReferenceOutput
 import com.github.vharatian.refexpo.models.RefExpoExecutionConfig
-import com.github.vharatian.refexpo.utils.isNullOrFalse
+import com.github.vharatian.refexpo.utils.checkNullOrFalse
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler
 import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -66,7 +66,7 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
                     val filepath = getRelativePath(file.virtualFile)
                     progressIndicator.text2 = "${files.size} -> $filepath"
 
-                    if (ignoredFilesRegex?.matches(filepath).isNullOrFalse()) {
+                    if (ignoredFilesRegex?.matches(filepath).checkNullOrFalse()) {
                         files.add(file)
                     }
                 }
@@ -139,38 +139,21 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
     private fun processElement(psiElement: PsiElement, writer: CsvStreamWriter<FlatReferenceOutput>) {
         // Check all references of the psiElement
 
-
-        var references = psiElement.references.toList()
-//        references += ReferencesSearch.search(psiElement, scope)
-
-        for (ref in references) {
-
-            if (psiElement.text == "(x+y).component") {
-//                (psiElement as Navigatable).navigate(true)
-                val a = 5
-
-            }
-
-            //Check if the destination of the reference is valid
-            var target = ref.resolve()
-            if (target == null) {
-                target = tryDeclarationHandlers(psiElement)
-                if (target != null) {
-                    val a = 5
+        val declarations = tryDeclarationHandlers(psiElement)
+        val targets = psiElement
+            .references
+            .flatMap { ref ->
+                if (ref is PsiPolyVariantReference) {
+                    ref.multiResolve(false).map { mr -> mr.element }
+                } else {
+                    listOf(ref.resolve())
                 }
             }
+            .plus(declarations)
+            .filterNotNull()
 
-//            if (target == null) {
-//                target = tryToFetchDeclaration(psiElement)
-//                if (target != null){
-//                    val a = 5
-//                }
-//            }
 
-            if (target == null) {
-                problemCount++;
-                continue
-            }
+        for (target in targets) {
 
             if (target.containingFile == null || !target.containingFile.virtualFile.isValidForInspection()) {
                 continue
@@ -183,31 +166,20 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
 
                 writer.write(refOut)
             }
-
-
         }
     }
 
 
-    private fun tryDeclarationHandlers(psiElement: PsiElement): PsiElement? {
+    private fun tryDeclarationHandlers(psiElement: PsiElement): List<PsiElement> {
         val first = FileEditorManager.getInstance(project).allEditors[0]
         val editor = (first as PsiAwareTextEditorImpl).editor
 
-        val newTargets = declarationHandlers.flatMap {
+        val targets = declarationHandlers.flatMap {
             (it as GotoDeclarationHandler).getGotoDeclarationTargets(psiElement, 0, editor)?.toList() ?: emptyList()
-        }
+        }.filterNotNull()
 
-        return newTargets.firstOrNull()
+        return targets
     }
-
-//    private fun getClassName(element: PsiElement): String {
-//        val psiClass = findEnclosingElement<PsiClass>(element)
-//        return if (config.addPackageName) {
-//            psiClass?.qualifiedName ?: ""
-//        } else {
-//            psiClass?.name ?: ""
-//        }
-//    }
 
     private fun ignored(
         output: FlatReferenceOutput
@@ -231,7 +203,6 @@ class RefExpoEvaluation(private val project: Project, private val config: RefExp
 
     private fun VirtualFile.isValidForInspection() =
         !isDirectory && !fileIndex.isInLibrary(this) && vcsManager.isFileInContent(this) && !name.contains(".gradle.kts")
-
 
 
 }

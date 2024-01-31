@@ -11,8 +11,8 @@ class ErrorResilientVisitor(val processElement: (PsiElement) -> Unit) : PsiRecur
 
             super.visitElement(element)
         } catch (e: Exception) {
-//                log("Error: ${e.message}")
-//                e.printStackTrace()
+                println("Error: ${e.message}")
+                e.printStackTrace()
         }
     }
 }

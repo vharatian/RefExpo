@@ -1,5 +1,5 @@
 package com.github.vharatian.refexpo.utils
 
-fun Boolean?.isNullOrFalse(): Boolean {
+fun Boolean?.checkNullOrFalse(): Boolean {
     return this == null || !this
 }
