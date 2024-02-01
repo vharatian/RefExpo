@@ -3,7 +3,15 @@
     <name>RefExpo</name>
     <vendor>Vahid Haratian</vendor>
     <description>
-        RefExpo is an IntelliJ plugin that constructs a dependency graph of a project. It supports all languages that IntelliJ supports.
+        RefExpo is an IntelliJ plugin that constructs a dependency graph of a project.
+        It supports all languages that IntelliJ supports.
+        Add the plugin to your IDE, you will find the RefExpo tool window on the right edge of the IDE.
+        You can make your configuration regarding the filtering of the edges in your graph.
+        Press Run Inspection to generate the edge list in csv format in the specified file.
+        <![CDATA[
+        For more information visit the <a href="https://github.com/vharatian/RefExpo/tree/dev">GitHub repository</a>.
+    ]]>
+
     </description>
 
     <extensions defaultExtensionNs="com.intellij">
