@@ -1,5 +1,9 @@
 # RefExpo
 
+<p align="center">
+<img src="statics/refExpo.png" width="200"/>
+</p>
+
 RefExpo is an IntelliJ plugin that constructs a dependency graph of a project. It supports all languages that IntelliJ supports.
 
 ## Why RefExpo
