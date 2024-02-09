@@ -14,6 +14,10 @@
 
     </description>
 
+    <change-notes>
+        First release
+    </change-notes>
+
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="RefExpo" anchor="right" factoryClass="RefExpoToolWindowFactory"/>
     </extensions>
