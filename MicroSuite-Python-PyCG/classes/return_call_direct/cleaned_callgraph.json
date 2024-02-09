@@ -1,0 +1,7 @@
+{
+    "main": [
+        "main.MyClass.func1"
+    ],
+    "main.MyClass.func1": [],
+    "main.MyClass.func2": []
+}
