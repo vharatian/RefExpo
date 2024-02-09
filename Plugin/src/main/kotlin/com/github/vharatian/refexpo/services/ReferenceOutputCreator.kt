@@ -9,9 +9,8 @@ import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiNamedElement
 import com.intellij.psi.PsiQualifiedNamedElement
-import com.jetbrains.python.psi.PyNamedElementContainer
 import com.jetbrains.python.psi.PyQualifiedNameOwner
-import com.jetbrains.rd.util.qualifiedName
+
 
 class ReferenceOutputCreator(val project: Project) {
 
@@ -34,10 +33,18 @@ class ReferenceOutputCreator(val project: Project) {
         val method = getElementName(methodElement)
         val methodQualifiedName = getQualifiedElementName(methodElement)
         val structure = getStructure(methodElement)
-        val lineNumber = documentManage.getDocument(element.containingFile)
-            ?.getLineNumber(element.textRangeInParent.startOffset) ?: 0
+        val lineNumber = getLineNumber(element)
 
         return Locator(path, lineNumber, clazz, classQualifiedName, method, methodQualifiedName, structure)
+    }
+
+    fun getLineNumber(element: PsiElement): Int {
+        val containingFile = element.containingFile
+            ?: return -1 // Element is not in a file
+        val document = documentManage.getDocument(containingFile)
+            ?: return -1 // No document associated with the file
+        val offset = element.textOffset
+        return document.getLineNumber(offset) + 1 // Adding 1 to make the line number 1-based
     }
 
     private fun getRelativePath(file: VirtualFile?) = file?.path?.replace("${project.basePath}/", "") ?: ""
