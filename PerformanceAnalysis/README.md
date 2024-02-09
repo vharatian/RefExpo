@@ -15,5 +15,5 @@ This evaluation is capable to evaluate RefExpo outputs against [Jarviz](https://
 Data related to the evaluations should be placed in the `data` folder.
 To run the evaluation, run the following command:
 ```bash
-python performance_analyzer.py <project_name>
+python macro_performance_analyzer.py <project_name>
 ```
