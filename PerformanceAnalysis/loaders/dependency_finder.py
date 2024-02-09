@@ -1,4 +1,5 @@
 import os
+import re
 import xml.etree.ElementTree as ET
 
 from loaders.data_loader import DataLoader, EvaluationLevel
@@ -85,6 +86,10 @@ class DependencyFinderDataLoader(DataLoader):
                     if inbound.attrib.get('type') == 'feature':  # Check if it's a feature
                         inbound_reference = self.extract_class_name_from_feature(inbound_reference)
                     relation_str = f"{inbound_reference}->{class_name}"
-                    class_inbound_relations.append(relation_str)
+
+                    relation_str = relation_str.replace("$", ".")
+
+                    if not re.search(r'\.\d+?', relation_str):
+                        class_inbound_relations.append(relation_str)
 
         return class_inbound_relations

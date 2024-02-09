@@ -1,4 +1,5 @@
 import json
+import re
 
 from loaders.data_loader import DataLoader, EvaluationLevel
 
@@ -41,7 +42,13 @@ class JarvizDataLoader(DataLoader):
 
             # Generate the formatted strings and add them to the lists
             if sourceClass != targetClass:
-                class_relations.append(f"{sourceClass}->{targetClass}")
+                relation = f"{sourceClass}->{targetClass}"
+                relation = relation.replace("$", ".")
+
+                # removing the numbers
+                if not re.search(r'\.\d+?', relation):
+                    class_relations.append(relation)
+                # class_relations.append(relation)
 
             if sourceMethod != targetMethod:
                 method_relations.append(f"{sourceClass}:{sourceMethod}->{targetClass}:{targetMethod}")

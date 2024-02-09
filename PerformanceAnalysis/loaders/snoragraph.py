@@ -46,9 +46,17 @@ class SonargraphDataLoader(DataLoader):
         from_full_name = self.extract_package_and_class(row['From'], from_base_path, from_extension)
         to_full_name = self.extract_package_and_class(row['To'], to_base_path, to_extension)
 
-        return f"{from_full_name}->{to_full_name}" \
-            if from_full_name and to_full_name and from_full_name != to_full_name \
-            else None
+        if not from_full_name or not to_full_name or from_full_name == to_full_name:
+            return None
+
+        reference = f"{from_full_name}->{to_full_name}"
+
+        reference = reference.replace("$", ".")
+
+        if re.search(r'\.\d+?', reference):
+            return None
+
+        return reference
 
     def load_class_data(self):
         file_path = self.get_file_path()

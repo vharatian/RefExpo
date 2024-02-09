@@ -42,20 +42,21 @@ class RefExpoDataLoader(DataLoader):
         class_relations = []
         method_relations = []
         for _, row in refexpo_df.iterrows():
-            source_method = self.get_structure(row, True)
-            target_method = self.get_structure(row, False)
+            source_method = self.get_structure(row, True, False)
+            target_method = self.get_structure(row, False,False)
             if source_method is not None and target_method is not None and source_method != target_method:
                 method_relations.append(f"{source_method}->{target_method}")
 
             source_class = self.get_class(row, True)
             target_class = self.get_class(row, False)
-            if source_class != target_class:
+            if source_method != None and target_class != None and source_class != target_class:
                 class_relations.append(f"{source_class}->{target_class}")
 
         class_relations = self.filter_nans(class_relations)
         method_relations = self.filter_nans(method_relations)
 
-        method_relations = self.filter_python_management_methods(method_relations)
+        # method_relations = self.filter_python_management_methods(method_relations)
+        class_relations = [cr for cr in class_relations if 'None' not in cr]
 
         return class_relations, method_relations
 

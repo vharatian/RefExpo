@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from loaders.data_loader import EvaluationLevel
 from loaders.dependency_finder import DependencyFinderDataLoader
 from loaders.jarviz import JarvizDataLoader
+from loaders.pyan import PyanDataLoader
 from loaders.refexpo import RefExpoDataLoader
 from loaders.snoragraph import SonargraphDataLoader
 from loaders.pycg import PyCGDataLoader
@@ -14,7 +15,8 @@ from pyvenn import venn
 
 def compare_relations(lists):
     unique_sets = [set(lst) for lst in lists]
-    num_lists = len(unique_sets)
+    sizes = [len(lst) for lst in unique_sets]
+    total_count = len(set.union(*unique_sets))
 
     # Check if the number of all elements is equal to sum of results
     # print(len(set(itertools.chain.from_iterable(lists))))
@@ -45,7 +47,7 @@ def compare_relations(lists):
         unique_elements = current_set - set().union(*other_sets)
         unique_elements_lists.append(unique_elements)
 
-    return unique_elements_lists, shared_count, grouped_appearances_count
+    return unique_elements_lists, shared_count, grouped_appearances_count, sizes, total_count
 
 
 def draw_venn_diagram(lists, set_labels):
@@ -53,7 +55,7 @@ def draw_venn_diagram(lists, set_labels):
     data = [set(lst) for lst in lists]
 
     # Generate labels for the sets (optional)
-    labels = venn.get_labels(data, fill=['number', 'logic'])
+    labels = venn.get_labels(data, fill=['number', 'percent'])
 
     # Create a Venn diagram based on the data
     diagrams = {
@@ -68,6 +70,7 @@ def draw_venn_diagram(lists, set_labels):
 
     # Set the title and display the diagram
     fig.show()
+
 
 def main():
     # Set up argument parser
@@ -84,10 +87,11 @@ def main():
     evaluation_level = EvaluationLevel[args.evaluation]
 
     data_loaders = [
-        SonargraphDataLoader(project),
-        DependencyFinderDataLoader(project),
-        JarvizDataLoader(project),
         RefExpoDataLoader(project),
+        JarvizDataLoader(project),
+        DependencyFinderDataLoader(project),
+        SonargraphDataLoader(project),
+        PyanDataLoader(project),
         PyCGDataLoader(project)
     ]
 
@@ -97,19 +101,26 @@ def main():
     data = [dl.load(evaluation_level) for dl in supporting_loaders]
 
     # Example usage in your main function
-    unique_elements_lists, shared_count, grouped_appearances_count = compare_relations(data)
+    unique_elements_lists, shared_count, grouped_appearances_count, sizes, total_edges = compare_relations(data)
 
     set_labels = [dl.get_name() for dl in supporting_loaders]
 
+    print(f"Total edges: {total_edges}")
     for i, unique_elements in enumerate(unique_elements_lists):
-        print(f"Unique elements in list {set_labels[i]} -> {len(unique_elements)}")
+        unique_count = len(unique_elements)
+        print(
+            f"{set_labels[i]} -> unique: {unique_count}({unique_count / total_edges:.0%}), shared: {sizes[i] - unique_count}({(sizes[i] - unique_count) / total_edges:.0%}), Total:{sizes[i]}({sizes[i] / total_edges:.0%})")
 
-    print(f"Number of shared elements: {shared_count}")
+    print(f"Number of shared elements: {shared_count}({shared_count / total_edges:.0%})")
     print(f"Count of elements by number of lists they appear in")
     for key, value in grouped_appearances_count.items():
-        print(f"\t{key} -> {value}")
+        print(f"\t{key} -> {value}({value / total_edges:.0%})")
+
+    total_shared = shared_count + sum(grouped_appearances_count.values())
+    print(f"Total shared: {total_shared}({total_shared / total_edges:.0%})")
 
     draw_venn_diagram(data, set_labels)
+
 
 if __name__ == "__main__":
     main()
