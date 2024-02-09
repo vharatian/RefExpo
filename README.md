@@ -58,6 +58,12 @@ By pressing "Run Inspection" button it will start the process and provide live r
 
 ![RefExpo toolbox](statics/inspectionModal.png)
 
+### Evaluation
+
+You have to make sure that the project SDK is configured correctly and Ideally IntelliJ can build the whole project.
+For instance, for a python project it might be the case that a JDK is assigned as project SDK in this case RefExpo might yield an empty graph.
+For this matter browse the source code and make sure the IDE is capable of finding references since RefExpo can not provide evaluations beyond IntelliJ capability.
+
 ### Filters
 
 Since generated output for a medium sized project can simply goes beyond 10 MB and over 10GB for large projects it is better to filter out the unwanted graph edges from the beginning.
