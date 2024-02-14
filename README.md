@@ -75,9 +75,9 @@ One of the main sources for having a huge output is including circular reference
 It is so common for a component such a method to reference itself more than referencing other components. 
 You can simply filter out these references by checking the corresponding checkbox.
 
--Ignore Intra file referencing.
--Ignore Intra class referencing.
--Ignore Intra method referencing.
+- Ignore Intra file referencing.
+- Ignore Intra class referencing.
+- Ignore Intra method referencing.
 
 #### Regex Filtering
 
