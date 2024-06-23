@@ -15,7 +15,7 @@
     </description>
 
     <change-notes>
-        First release
+        Updated the plugin to support the latest version of IntelliJ IDEA.
     </change-notes>
 
     <extensions defaultExtensionNs="com.intellij">
@@ -24,7 +24,6 @@
     <!-- Additional configurations as needed -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.lang</depends>
-    <depends>com.intellij.modules.vcs</depends>
     <depends>com.intellij.modules.python</depends>
     <depends>com.intellij.modules.java</depends>
     <depends>JavaScript</depends>
